@@ -1,0 +1,94 @@
+spring:
+  profiles:
+    active: dev
+  application:
+    name: grievix-backend
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    url: jdbc:h2:mem:grievixdb;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        web-allow-others: true
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  # Fallbacks for Redis & Kafka in Dev Mode
+  data:
+    redis:
+      repositories:
+        enabled: false
+  kafka:
+    bootstrap-servers: localhost:9092
+    listener:
+      missing-topics-fatal: false
+
+# Custom Security & JWT properties
+grievix:
+  jwt:
+    secret: 9a4f2c8d3e1b7f6a0c5b3e2a8d9c1f0e4b7a2d3c6e9f1a0b3c2d5e8f7a6b9c0d1e2f3a4b5c6d7e8f9
+    expirationMs: 3600000        # 1 hour
+    refreshExpirationMs: 86400000 # 24 hours
+  gemini:
+    apiKey: ${GEMINI_API_KEY:}
+    apiUrl: https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
+  escalation:
+    slaHours: 24                 # 24 hours SLA default
+    checkIntervalMs: 60000        # Check every 60 seconds for demonstration ease
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+  datasource:
+    url: jdbc:postgresql://postgres:5432/grievix
+    username: postgres
+    password: password
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+  data:
+    redis:
+      host: redis
+      port: 6379
+  kafka:
+    bootstrap-servers: kafka:29092
+    consumer:
+      group-id: grievix-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+grievix:
+  jwt:
+    secret: 9a4f2c8d3e1b7f6a0c5b3e2a8d9c1f0e4b7a2d3c6e9f1a0b3c2d5e8f7a6b9c0d1e2f3a4b5c6d7e8f9
+    expirationMs: 3600000        # 1 hour
+    refreshExpirationMs: 86400000 # 24 hours
+  gemini:
+    apiKey: ${GEMINI_API_KEY:}
+    apiUrl: https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
+  escalation:
+    slaHours: 24                 # 24 hours SLA default
+    checkIntervalMs: 3600000      # Check every 1 hour in production

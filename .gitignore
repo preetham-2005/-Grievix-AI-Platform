@@ -1,0 +1,38 @@
+# Compiled Java classes & Maven target dirs
+**/target/
+*.class
+*.jar
+*.war
+*.ear
+
+# Node modules & production builds
+**/node_modules/
+**/dist/
+**/.svelte-kit/
+**/build/
+.npm/
+
+# IDE specific settings
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Log files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local environment configuration
+.env
+.env.*
+!.env.example
