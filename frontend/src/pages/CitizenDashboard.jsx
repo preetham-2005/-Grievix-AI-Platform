@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../api';
 import { 
   PlusCircle, List, Clock, CheckCircle, AlertCircle, MapPin, 
@@ -52,6 +52,8 @@ export default function CitizenDashboard({ currentUser }) {
   const [markerInstance, setMarkerInstance] = useState(null);
   const [isCustomUpload, setIsCustomUpload] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const mapRef = useRef(null);
+  const markerRef = useRef(null);
 
   // AI Loading & Result state
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
@@ -80,14 +82,9 @@ export default function CitizenDashboard({ currentUser }) {
     if (showSubmitModal && !aiResult && !aiAnalyzing) {
       const timer = setTimeout(() => {
         const mapEl = document.getElementById('citizen-map');
-        if (mapEl && window.L) {
+        if (mapEl && window.L && !mapRef.current) {
           const defaultHotspot = BENGALURU_HOTSPOTS[selectedHotspot];
           
-          // Clean up any existing map instance before creating
-          if (mapInstance) {
-            mapInstance.remove();
-          }
-
           const map = window.L.map('citizen-map').setView([defaultHotspot.lat, defaultHotspot.lng], 13);
           
           window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -114,6 +111,8 @@ export default function CitizenDashboard({ currentUser }) {
             setLongitude(e.latlng.lng);
           });
 
+          mapRef.current = map;
+          markerRef.current = marker;
           setMapInstance(map);
           setMarkerInstance(marker);
         }
@@ -123,8 +122,10 @@ export default function CitizenDashboard({ currentUser }) {
         clearTimeout(timer);
       };
     } else {
-      if (mapInstance) {
-        mapInstance.remove();
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        markerRef.current = null;
         setMapInstance(null);
         setMarkerInstance(null);
       }
@@ -133,10 +134,10 @@ export default function CitizenDashboard({ currentUser }) {
 
   // Sync Map view when hotspot dropdown changes
   useEffect(() => {
-    if (mapInstance && markerInstance) {
+    if (mapRef.current && markerRef.current) {
       const hotspot = BENGALURU_HOTSPOTS[selectedHotspot];
-      mapInstance.setView([hotspot.lat, hotspot.lng], 13);
-      markerInstance.setLatLng([hotspot.lat, hotspot.lng]);
+      mapRef.current.setView([hotspot.lat, hotspot.lng], 13);
+      markerRef.current.setLatLng([hotspot.lat, hotspot.lng]);
       setLatitude(hotspot.lat);
       setLongitude(hotspot.lng);
     }

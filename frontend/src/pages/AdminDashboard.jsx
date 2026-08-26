@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../api';
 import { 
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
@@ -24,6 +24,8 @@ export default function AdminDashboard({ currentUser }) {
   const [activePlot, setActivePlot] = useState(null);
   const [mapInstance, setMapInstance] = useState(null);
   const [markersGroup, setMarkersGroup] = useState(null);
+  const mapRef = useRef(null);
+  const markersRef = useRef(null);
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -81,7 +83,7 @@ export default function AdminDashboard({ currentUser }) {
   // Initialize Leaflet Map
   useEffect(() => {
     const mapEl = document.getElementById('admin-map');
-    if (mapEl && window.L && !mapInstance) {
+    if (mapEl && window.L && !mapRef.current) {
       const map = window.L.map('admin-map').setView([12.9716, 77.5946], 12);
       
       window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -90,13 +92,17 @@ export default function AdminDashboard({ currentUser }) {
       }).addTo(map);
 
       const layerGroup = window.L.layerGroup().addTo(map);
+      mapRef.current = map;
+      markersRef.current = layerGroup;
       setMapInstance(map);
       setMarkersGroup(layerGroup);
     }
 
     return () => {
-      if (mapInstance) {
-        mapInstance.remove();
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        markersRef.current = null;
         setMapInstance(null);
         setMarkersGroup(null);
       }
