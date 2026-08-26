@@ -22,6 +22,8 @@ export default function OfficerDashboard({ currentUser }) {
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [resolutionImgUrl, setResolutionImgUrl] = useState('');
   const [selectedResImgIdx, setSelectedResImgIdx] = useState(-1);
+  const [isCustomUpload, setIsCustomUpload] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const fetchComplaints = async () => {
@@ -47,6 +49,37 @@ export default function OfficerDashboard({ currentUser }) {
     fetchComplaints();
   }, []);
 
+  const handlePresetSelect = (url, idx) => {
+    setSelectedResImgIdx(idx);
+    setResolutionImgUrl(url);
+    setIsCustomUpload(false);
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    setIsUploading(true);
+    try {
+      const response = await api.post('/images/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      setResolutionImgUrl(response.data.url);
+      setIsCustomUpload(true);
+      setSelectedResImgIdx(-1);
+    } catch (err) {
+      console.error('Upload failed', err);
+      alert('Proof photo upload failed. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleStatusUpdate = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -59,6 +92,7 @@ export default function OfficerDashboard({ currentUser }) {
       setResolutionNotes('');
       setResolutionImgUrl('');
       setSelectedResImgIdx(-1);
+      setIsCustomUpload(false);
       fetchComplaints();
     } catch (err) {
       console.error(err);
@@ -324,25 +358,58 @@ export default function OfficerDashboard({ currentUser }) {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs text-slate-450 font-semibold flex items-center space-x-1">
-                      <Upload className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Resolution Proof (Attach Mock Photograph)</span>
+                    <label className="text-xs text-slate-455 font-semibold flex items-center space-x-1">
+                      <Upload className="w-3.5 h-3.5 text-emerald-450" />
+                      <span>Attach Resolution Proof (Real Upload or Presets)</span>
                     </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {RESOLUTION_IMAGES.map((img, idx) => (
-                        <button
-                          type="button"
-                          key={idx}
-                          onClick={() => { setSelectedResImgIdx(idx); setResolutionImgUrl(img.url); }}
-                          className={`p-2 rounded-lg border text-[10px] text-center font-medium truncate transition-all ${selectedResImgIdx === idx ? 'bg-emerald-600/10 border-emerald-500 text-emerald-450 font-bold' : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'}`}
-                        >
-                          {img.label}
-                        </button>
-                      ))}
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Real File Upload Container */}
+                      <div className="p-3 bg-slate-900/40 border border-slate-850 rounded-xl flex flex-col justify-center items-center space-y-1.5 group hover:border-slate-700 transition-colors min-h-[66px]">
+                        <input
+                          type="file"
+                          id="officer-proof-upload"
+                          accept="image/*"
+                          onChange={handleFileUpload}
+                          disabled={isUploading}
+                          className="hidden"
+                        />
+                        <label htmlFor="officer-proof-upload" className="cursor-pointer flex flex-col items-center space-y-1 text-slate-400 group-hover:text-slate-200">
+                          <Upload className="w-4.5 h-4.5 text-slate-550 group-hover:text-emerald-450 transition-colors" />
+                          <span className="text-[10px] font-semibold">
+                            {isUploading ? 'Uploading proof...' : 'Choose Image File'}
+                          </span>
+                        </label>
+                      </div>
+
+                      {/* Presets Selection */}
+                      <div className="grid grid-cols-2 gap-1 bg-slate-950/40 p-1.5 rounded-xl border border-slate-850">
+                        {RESOLUTION_IMAGES.map((img, idx) => (
+                          <button
+                            type="button"
+                            key={idx}
+                            onClick={() => handlePresetSelect(img.url, idx)}
+                            className={`p-1.5 rounded text-[8px] text-center font-medium truncate transition-all ${selectedResImgIdx === idx && !isCustomUpload ? 'bg-emerald-600/10 border-emerald-500 text-emerald-450 font-bold' : 'bg-slate-900 border-slate-850 text-slate-400 hover:border-slate-750'}`}
+                          >
+                            {img.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
+
                     {resolutionImgUrl && (
-                      <div className="mt-2 w-full h-24 rounded-lg overflow-hidden border border-slate-800">
+                      <div className="mt-3 relative w-full h-24 rounded-lg overflow-hidden border border-slate-800">
                         <img src={resolutionImgUrl} alt="Preview" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 to-transparent p-2 flex items-end justify-between">
+                          <span className="text-[9px] font-bold text-slate-350">
+                            {isCustomUpload ? 'Uploaded Resolution Photo' : 'Preset Proof Selected'}
+                          </span>
+                          {isCustomUpload && (
+                            <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 font-bold uppercase">
+                              Real File
+                            </span>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>

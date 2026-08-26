@@ -183,7 +183,19 @@ public class ComplaintService {
     }
 
     public List<ComplaintResponse> searchAndFilter(String category, String status, String department, String search) {
-        return complaintRepository.searchComplaints(category, status, department, search).stream()
+        Category catEnum = null;
+        if (category != null && !category.isBlank()) {
+            try { catEnum = Category.valueOf(category.toUpperCase()); } catch (IllegalArgumentException e) {}
+        }
+        Status statEnum = null;
+        if (status != null && !status.isBlank()) {
+            try { statEnum = Status.valueOf(status.toUpperCase()); } catch (IllegalArgumentException e) {}
+        }
+        Department deptEnum = null;
+        if (department != null && !department.isBlank()) {
+            try { deptEnum = Department.valueOf(department.toUpperCase()); } catch (IllegalArgumentException e) {}
+        }
+        return complaintRepository.searchComplaints(catEnum, statEnum, deptEnum, search).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
@@ -230,6 +242,20 @@ public class ComplaintService {
         // Dispatch alert when resolved
         if (newStatus == Status.RESOLVED) {
             notificationService.sendSms(savedComplaint.getCitizen().getEmail(), "Grievix Alert: Your grievance #" + savedComplaint.getId() + " is marked as RESOLVED by the officer. Please review it and submit rating feedback.");
+            
+            // Send email confirmation to citizen
+            notificationService.sendEmail(
+                savedComplaint.getCitizen().getEmail(),
+                "Grievix Update: Grievance #" + savedComplaint.getId() + " is RESOLVED",
+                "Dear " + savedComplaint.getCitizen().getUsername() + ",\n\nYour reported issue: '" + savedComplaint.getTitle() + "' has been marked as RESOLVED by the officer. Resolution notes:\n\n" + notes + "\n\nPlease log in to rate the service and close the ticket."
+            );
+
+            // Send email confirmation to resolving officer
+            notificationService.sendEmail(
+                officer.getEmail(),
+                "Resolution Logged: Grievance #" + savedComplaint.getId(),
+                "Hello " + officer.getUsername() + ",\n\nThank you. Your resolution notes and image proof for grievance #" + savedComplaint.getId() + " have been successfully saved."
+            );
         }
 
         return mapToResponse(savedComplaint);
@@ -289,6 +315,7 @@ public class ComplaintService {
                 .collect(Collectors.toList());
 
         double avgHours = resolved.stream()
+                .filter(c -> c.getCreatedDate() != null && c.getUpdatedDate() != null)
                 .mapToLong(c -> Duration.between(c.getCreatedDate(), c.getUpdatedDate()).toHours())
                 .average()
                 .orElse(0.0);

@@ -1,5 +1,6 @@
 package com.grievix.repository;
 
+import com.grievix.model.Category;
 import com.grievix.model.Complaint;
 import com.grievix.model.Department;
 import com.grievix.model.Status;
@@ -34,9 +35,9 @@ public interface ComplaintRepository extends JpaRepository<Complaint, Long> {
            "(:department IS NULL OR c.department = :department) AND " +
            "(:search IS NULL OR LOWER(c.title) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(c.description) LIKE LOWER(CONCAT('%', :search, '%')))")
     List<Complaint> searchComplaints(
-        @Param("category") String category,
-        @Param("status") String status,
-        @Param("department") String department,
+        @Param("category") Category category,
+        @Param("status") Status status,
+        @Param("department") Department department,
         @Param("search") String search
     );
 
