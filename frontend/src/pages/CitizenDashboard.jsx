@@ -457,11 +457,16 @@ export default function CitizenDashboard({ currentUser }) {
                       <span className="font-semibold text-slate-200 block text-xs">Rate the resolution & close case:</span>
                       <div className="flex space-x-1">
                         {[1, 2, 3, 4, 5].map((star) => (
-                          <Star
+                          <button
+                            type="button"
                             key={star}
                             onClick={() => setRating(star)}
-                            className={`w-5 h-5 cursor-pointer ${star <= rating ? 'fill-amber-450 text-amber-450' : 'text-slate-600 hover:text-slate-400'}`}
-                          />
+                            className="p-1 hover:scale-110 active:scale-95 transition-all focus:outline-none"
+                          >
+                            <Star
+                              className={`w-5.5 h-5.5 transition-all ${star <= rating ? 'fill-amber-400 text-amber-400 filter drop-shadow-[0_0_8px_rgba(245,158,11,0.35)]' : 'text-slate-650 hover:text-slate-500'}`}
+                            />
+                          </button>
                         ))}
                       </div>
                       <textarea
@@ -469,11 +474,11 @@ export default function CitizenDashboard({ currentUser }) {
                         value={feedbackNotes}
                         onChange={(e) => setFeedbackNotes(e.target.value)}
                         placeholder="Write feedback notes (optional)..."
-                        className="glass-input w-full p-2 rounded text-xs"
+                        className="w-full p-2.5 rounded-lg text-xs text-slate-200 bg-slate-900 border border-slate-800 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/25 transition-all resize-none"
                       />
                       <button
                         onClick={() => handleFeedbackSubmit(selectedComplaint.id)}
-                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded text-xs transition-colors"
+                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-semibold rounded-lg text-xs transition-all shadow-lg shadow-emerald-600/10 text-center"
                       >
                         Submit Feedback & Close Case
                       </button>
@@ -489,7 +494,7 @@ export default function CitizenDashboard({ currentUser }) {
                         {[1, 2, 3, 4, 5].map((star) => (
                           <Star
                             key={star}
-                            className={`w-3.5 h-3.5 ${star <= selectedComplaint.rating ? 'fill-amber-450 text-amber-450' : 'text-slate-700'}`}
+                            className={`w-3.5 h-3.5 ${star <= selectedComplaint.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-700'}`}
                           />
                         ))}
                       </div>
