@@ -11,7 +11,7 @@ import {
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#f43f5e', '#14b8a6', '#06b6d4'];
 
-export default function AdminDashboard({ currentUser }) {
+export default function AdminDashboard({ currentUser, showToast }) {
   const [analytics, setAnalytics] = useState(null);
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -26,6 +26,74 @@ export default function AdminDashboard({ currentUser }) {
   const [markersGroup, setMarkersGroup] = useState(null);
   const mapRef = useRef(null);
   const markersRef = useRef(null);
+
+  // Manual Override States
+  const [officers, setOfficers] = useState([]);
+  const [showOverridePanel, setShowOverridePanel] = useState(false);
+  const [overrideCategory, setOverrideCategory] = useState('');
+  const [overrideDept, setOverrideDept] = useState('');
+  const [overrideOfficerId, setOverrideOfficerId] = useState('');
+
+  const fetchOfficers = async () => {
+    try {
+      const res = await api.get('/complaints/officers');
+      setOfficers(res.data);
+    } catch (err) {
+      console.error('Error fetching officers', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchOfficers();
+  }, []);
+
+  useEffect(() => {
+    if (activePlot) {
+      setOverrideCategory(activePlot.category || '');
+      setOverrideDept(activePlot.department || '');
+      setOverrideOfficerId(activePlot.officerId || '');
+      setShowOverridePanel(false);
+    }
+  }, [activePlot]);
+
+  const handleOverrideSubmit = async () => {
+    try {
+      const officerParam = overrideOfficerId === '' ? -1 : overrideOfficerId;
+      const res = await api.put(
+        `/complaints/${activePlot.id}/override?category=${overrideCategory}&department=${overrideDept}&officerId=${officerParam}`,
+        {}
+      );
+      setActivePlot(res.data);
+      fetchDashboardData();
+      showToast('AI routing manually overridden successfully!', 'success');
+      setShowOverridePanel(false);
+    } catch (err) {
+      console.error('Failed to override routing', err);
+      showToast('Failed to override routing assignment.', 'error');
+    }
+  };
+
+  const handleCsvExport = async () => {
+    try {
+      const deptParam = currentUser.role === 'ROLE_DEPT_HEAD' ? currentUser.department : '';
+      const res = await api.get(
+        `/complaints/export?category=${filterCategory}&status=${filterStatus}&department=${deptParam}&query=${searchQuery}`,
+        { responseType: 'blob' }
+      );
+      const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'grievix_complaints_export.csv');
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      showToast('Report CSV successfully generated and downloaded.', 'success');
+    } catch (err) {
+      console.error('Failed to export CSV report', err);
+      showToast('CSV export failed. Please try again.', 'error');
+    }
+  };
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -289,8 +357,8 @@ export default function AdminDashboard({ currentUser }) {
 
             {/* Floating map popup card overlay */}
             {activePlot && (
-              <div className="absolute bottom-4 left-4 right-4 bg-slate-900/95 border border-slate-800 p-4 rounded-xl shadow-2xl flex justify-between items-start z-[1000] animate-fade-in">
-                <div className="space-y-1.5 text-xs">
+              <div className="absolute bottom-4 left-4 right-4 bg-slate-900/95 border border-slate-800 p-4 rounded-xl shadow-2xl flex justify-between items-start z-[1000] animate-fade-in text-left">
+                <div className="space-y-1.5 text-xs flex-1">
                   <div className="flex items-center space-x-2">
                     <span className="font-mono text-[9px] text-slate-500">CASE ID: #{activePlot.id}</span>
                     <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
@@ -300,16 +368,100 @@ export default function AdminDashboard({ currentUser }) {
                     </span>
                   </div>
                   <h4 className="font-bold text-slate-200">{activePlot.title}</h4>
-                  <p className="text-[10px] text-slate-450 leading-relaxed max-w-md line-clamp-1">{activePlot.description}</p>
-                  <div className="flex space-x-3 text-[9px] text-slate-550 font-semibold pt-1">
-                    <span>Area: {activePlot.area}</span>
-                    <span>Priority: {activePlot.priority}</span>
-                    <span>Assigned: {activePlot.officerName || 'Unassigned'}</span>
-                  </div>
+                  <p className="text-[10px] text-slate-450 leading-relaxed max-w-xl line-clamp-1">{activePlot.description}</p>
+                  
+                  {showOverridePanel ? (
+                    <div className="mt-3 pt-3 border-t border-slate-850 space-y-3">
+                      <span className="text-blue-400 font-bold block text-[10px] uppercase tracking-wider">Override AI Assignment Routing</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div className="flex flex-col space-y-1">
+                          <span className="text-[9px] text-slate-500 font-semibold">Category</span>
+                          <select
+                            value={overrideCategory}
+                            onChange={(e) => setOverrideCategory(e.target.value)}
+                            className="px-2 py-1 rounded text-xs text-slate-300 bg-slate-950 border border-slate-850 focus:outline-none"
+                          >
+                            <option value="ROAD_DAMAGE">Road Damage</option>
+                            <option value="GARBAGE">Garbage</option>
+                            <option value="WATER_LEAKAGE">Water Leakage</option>
+                            <option value="ELECTRICITY">Electricity</option>
+                            <option value="STREET_LIGHT">Street Light</option>
+                            <option value="DRAINAGE">Drainage</option>
+                            <option value="ILLEGAL_PARKING">Illegal Parking</option>
+                            <option value="OTHERS">Others</option>
+                          </select>
+                        </div>
+
+                        <div className="flex flex-col space-y-1">
+                          <span className="text-[9px] text-slate-500 font-semibold">Department</span>
+                          <select
+                            value={overrideDept}
+                            onChange={(e) => setOverrideDept(e.target.value)}
+                            className="px-2 py-1 rounded text-xs text-slate-300 bg-slate-950 border border-slate-850 focus:outline-none"
+                          >
+                            <option value="CIVIC_WORKS">Civic Works</option>
+                            <option value="MUNICIPALITY">Municipality</option>
+                            <option value="WATER_SUPPLY">Water Supply</option>
+                            <option value="ELECTRICAL">Electrical</option>
+                            <option value="OTHERS">Others</option>
+                          </select>
+                        </div>
+
+                        <div className="flex flex-col space-y-1">
+                          <span className="text-[9px] text-slate-500 font-semibold">Assign Officer</span>
+                          <select
+                            value={overrideOfficerId}
+                            onChange={(e) => setOverrideOfficerId(e.target.value)}
+                            className="px-2 py-1 rounded text-xs text-slate-300 bg-slate-950 border border-slate-850 focus:outline-none"
+                          >
+                            <option value="">Unassigned</option>
+                            {officers
+                              .filter((o) => o.department === overrideDept)
+                              .map((o) => (
+                                <option key={o.id} value={o.id}>
+                                  {o.username}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="flex space-x-2 pt-1">
+                        <button
+                          onClick={handleOverrideSubmit}
+                          className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold shadow-md active:scale-95 transition-all"
+                        >
+                          Save Override
+                        </button>
+                        <button
+                          onClick={() => setShowOverridePanel(false)}
+                          className="px-2.5 py-1 bg-slate-850 hover:bg-slate-800 text-slate-400 rounded text-[10px] font-bold"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-2 space-y-2 sm:space-y-0">
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[9px] text-slate-500 font-semibold">
+                        <span>Area: {activePlot.area}</span>
+                        <span>Priority: {activePlot.priority}</span>
+                        <span>Assigned: {activePlot.officerName || 'Unassigned'}</span>
+                        <span>Dept: {activePlot.department?.replace('_', ' ')}</span>
+                      </div>
+                      {(currentUser.role === 'ROLE_ADMIN' || currentUser.role === 'ROLE_SUPER_ADMIN') && (
+                        <button
+                          onClick={() => setShowOverridePanel(true)}
+                          className="px-2.5 py-1 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/20 hover:border-blue-500/35 rounded text-[10px] font-bold transition-all ml-0 sm:ml-4 self-start sm:self-auto"
+                        >
+                          Re-Route Assignment
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={() => setActivePlot(null)}
-                  className="p-1 rounded bg-slate-950 border border-slate-850 hover:text-white text-slate-450"
+                  className="p-1 rounded bg-slate-950 border border-slate-850 hover:text-white text-slate-450 ml-4"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -364,7 +516,7 @@ export default function AdminDashboard({ currentUser }) {
         
         {/* Pie Chart: Complaints by Category */}
         <div className="glass-panel p-6 rounded-2xl space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">Complaints by Category</h3>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">Complaints by Category (Click slice to filter)</h3>
           <div className="h-64">
             {getCategoryData().length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-slate-550">No data available</div>
@@ -379,6 +531,14 @@ export default function AdminDashboard({ currentUser }) {
                     outerRadius={80}
                     paddingAngle={3}
                     dataKey="value"
+                    onClick={(data) => {
+                      if (data && data.name) {
+                        setFilterCategory(data.name);
+                        showToast(`Filtered database ledger to ${data.name.replace('_', ' ')} category.`, 'info');
+                        document.getElementById('ledger-section')?.scrollIntoView({ behavior: 'smooth' });
+                      }
+                    }}
+                    className="cursor-pointer"
                   >
                     {getCategoryData().map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -397,7 +557,7 @@ export default function AdminDashboard({ currentUser }) {
 
         {/* Bar Chart: Complaints by Status */}
         <div className="glass-panel p-6 rounded-2xl space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">Complaints by Status</h3>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">Complaints by Status (Click bar to filter)</h3>
           <div className="h-64">
             {getStatusData().length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-slate-550">No data available</div>
@@ -411,7 +571,19 @@ export default function AdminDashboard({ currentUser }) {
                     contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f8fafc' }}
                     itemStyle={{ color: '#94a3b8' }}
                   />
-                  <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                  <Bar 
+                    dataKey="value" 
+                    fill="#3b82f6" 
+                    radius={[4, 4, 0, 0]}
+                    onClick={(data) => {
+                      if (data && data.name) {
+                        setFilterStatus(data.name);
+                        showToast(`Filtered database ledger to ${data.name} status.`, 'info');
+                        document.getElementById('ledger-section')?.scrollIntoView({ behavior: 'smooth' });
+                      }
+                    }}
+                    className="cursor-pointer"
+                  >
                     {getStatusData().map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.name === 'ESCALATED' ? '#f43f5e' : '#3b82f6'} />
                     ))}
@@ -425,17 +597,28 @@ export default function AdminDashboard({ currentUser }) {
       </div>
 
       {/* Database Search Queue */}
-      <div className="glass-panel p-6 rounded-2xl space-y-4">
+      <div id="ledger-section" className="glass-panel p-6 rounded-2xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-900">
           <h3 className="text-lg font-bold font-outfit text-white">Central Grievance Ledger</h3>
           
-          <button
-            onClick={fetchDashboardData}
-            className="self-end p-2.5 rounded-lg bg-slate-900 border border-slate-800 hover:text-white text-slate-450 hover:bg-slate-850 active:scale-95 transition-all"
-            title="Refresh Ledger"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handleCsvExport}
+              className="flex items-center space-x-2 px-3.5 py-2.5 rounded-lg bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 hover:border-emerald-500/35 active:scale-95 transition-all text-xs font-semibold"
+              title="Export filtered grievances to CSV file"
+            >
+              <FileText className="w-4 h-4" />
+              <span>Export CSV</span>
+            </button>
+            
+            <button
+              onClick={fetchDashboardData}
+              className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 hover:text-white text-slate-450 hover:bg-slate-850 active:scale-95 transition-all"
+              title="Refresh Ledger"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Filter bar */}
@@ -506,7 +689,14 @@ export default function AdminDashboard({ currentUser }) {
                 </tr>
               ) : (
                 filteredComplaints.map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-900/30 transition-colors">
+                  <tr 
+                    key={c.id} 
+                    onClick={() => {
+                      setActivePlot(c);
+                      window.scrollTo({ top: 250, behavior: 'smooth' });
+                    }}
+                    className="hover:bg-slate-900/35 transition-colors cursor-pointer"
+                  >
                     <td className="p-4 font-mono font-bold text-slate-400">#{c.id}</td>
                     <td className="p-4 font-semibold text-slate-200">
                       <div className="max-w-[200px] truncate">{c.title}</div>

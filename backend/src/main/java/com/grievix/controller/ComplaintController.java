@@ -108,4 +108,35 @@ public class ComplaintController {
         int count = escalationEngine.checkAndEscalateComplaints();
         return ResponseEntity.ok(new MessageResponse("Manual SLA check run successfully. Escalated " + count + " complaints."));
     }
+
+    @PutMapping("/{id}/override")
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_SUPER_ADMIN')")
+    public ResponseEntity<ComplaintResponse> overrideRouting(
+            @PathVariable Long id,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String department,
+            @RequestParam(required = false) Long officerId) {
+        ComplaintResponse response = complaintService.overrideRouting(id, category, department, officerId);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/export")
+    @PreAuthorize("hasAnyRole('ROLE_DEPT_HEAD', 'ROLE_ADMIN', 'ROLE_SUPER_ADMIN')")
+    public ResponseEntity<byte[]> exportFilteredComplaintsCsv(
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String department,
+            @RequestParam(required = false) String query) {
+        byte[] csvBytes = complaintService.exportFilteredComplaintsCsv(category, status, department, query);
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\"complaints_export.csv\"")
+                .header("Content-Type", "text/csv; charset=UTF-8")
+                .body(csvBytes);
+    }
+
+    @GetMapping("/officers")
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_SUPER_ADMIN', 'ROLE_DEPT_HEAD')")
+    public ResponseEntity<List<Map<String, Object>>> getOfficers() {
+        return ResponseEntity.ok(complaintService.getAllOfficers());
+    }
 }

@@ -17,13 +17,12 @@ const BENGALURU_HOTSPOTS = [
   { name: 'Rajajinagar', ward: 'Ward 10', lat: 12.9896, lng: 77.5539, city: 'Bengaluru' },
   { name: 'Banashankari', ward: 'Ward 52', lat: 12.9254, lng: 77.5468, city: 'Bengaluru' },
   { name: 'Hebbal', ward: 'Ward 1', lat: 13.0354, lng: 77.5988, city: 'Bengaluru' },
-  { name: 'Marathahalli', ward: 'Ward 48', lat: 12.9569, lng: 77.7011, city: 'Bengaluru' },
-  { name: 'Bellandur', ward: 'Ward 35', lat: 12.9304, lng: 77.6784, city: 'Bengaluru' },
-  { name: 'Yelahanka', ward: 'Ward 2', lat: 13.1007, lng: 77.5963, city: 'Bengaluru' },
-  { name: 'BTM Layout', ward: 'Ward 25', lat: 12.9166, lng: 77.6101, city: 'Bengaluru' },
-  { name: 'JP Nagar', ward: 'Ward 27', lat: 12.9063, lng: 77.5857, city: 'Bengaluru' },
-  { name: 'Domlur', ward: 'Ward 18', lat: 12.9610, lng: 77.6387, city: 'Bengaluru' },
-  { name: 'Basavanagudi', ward: 'Ward 12', lat: 12.9417, lng: 77.5755, city: 'Bengaluru' },
+  { name: 'Indiranagar', ward: 'Ward 80', lat: 12.9719, lng: 77.6412, city: 'Bengaluru' },
+  { name: 'Koramangala', ward: 'Ward 67', lat: 12.9352, lng: 77.6245, city: 'Bengaluru' },
+  { name: 'Malleshwaram', ward: 'Ward 7', lat: 12.9961, lng: 77.5714, city: 'Bengaluru' },
+  { name: 'Jayanagar', ward: 'Ward 54', lat: 12.9308, lng: 77.5830, city: 'Bengaluru' },
+  { name: 'Whitefield', ward: 'Ward 94', lat: 12.9698, lng: 77.7499, city: 'Bengaluru' },
+  { name: 'Yelahanka', ward: 'Ward 4', lat: 13.0984, lng: 77.5961, city: 'Bengaluru' },
 ];
 
 const IMAGE_PRESETS = {
@@ -31,11 +30,11 @@ const IMAGE_PRESETS = {
   GARBAGE: '/presets/garbage.png',
   WATER_LEAKAGE: '/presets/water_leakage.png',
   ELECTRICITY: '/presets/electricity.png',
-  STREET_LIGHT: '/presets/street_light.png',
-  OTHERS: '/presets/others.png',
+  STREET_LIGHT: '/presets/electricity.png', // Fallback preset image
+  OTHERS: '/presets/road_damage.png',
 };
 
-export default function CitizenDashboard({ currentUser }) {
+export default function CitizenDashboard({ currentUser, showToast }) {
   const [complaints, setComplaints] = useState([]);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
@@ -62,6 +61,28 @@ export default function CitizenDashboard({ currentUser }) {
   // Feedback State
   const [rating, setRating] = useState(5);
   const [feedbackNotes, setFeedbackNotes] = useState('');
+
+  // Search, Filter & Sort States
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [sortOrder, setSortOrder] = useState('newest');
+
+  const filteredComplaints = complaints
+    .filter((c) => {
+      const matchesSearch = searchQuery === '' || 
+        c.id.toString().includes(searchQuery) ||
+        c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.description.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesStatus = filterStatus === 'ALL' || c.status === filterStatus;
+      
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.createdDate);
+      const dateB = new Date(b.createdDate);
+      return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+    });
 
   // Fetch Citizen Complaints
   const fetchComplaints = async () => {
@@ -190,9 +211,10 @@ export default function CitizenDashboard({ currentUser }) {
       setImageUrl(response.data.url);
       setIsCustomUpload(true);
       setImageCategory(''); // clear preset highlight
+      showToast('Incident photograph uploaded successfully!', 'success');
     } catch (err) {
       console.error('Upload failed', err);
-      alert('Photo upload failed. Please try again.');
+      showToast('Photo upload failed. Please try again.', 'error');
     } finally {
       setIsUploading(false);
     }
@@ -225,6 +247,7 @@ export default function CitizenDashboard({ currentUser }) {
         setAiResult(response.data);
         setAiAnalyzing(false);
         fetchComplaints();
+        showToast('Complaint registered successfully! AI routed it to the correct department.', 'success');
         // Clear fields
         setTitle('');
         setDescription('');
@@ -234,7 +257,7 @@ export default function CitizenDashboard({ currentUser }) {
 
     } catch (err) {
       console.error(err);
-      alert('Error submitting grievance.');
+      showToast('Failed to submit grievance. Please try again.', 'error');
       setAiAnalyzing(false);
     }
   };
@@ -248,9 +271,10 @@ export default function CitizenDashboard({ currentUser }) {
       setSelectedComplaint(response.data);
       setFeedbackNotes('');
       fetchComplaints();
+      showToast('Thank you! Feedback received and case closed.', 'success');
     } catch (err) {
       console.error('Error submitting feedback', err);
-      alert('Failed to submit feedback.');
+      showToast('Failed to submit feedback.', 'error');
     }
   };
 
@@ -327,22 +351,57 @@ export default function CitizenDashboard({ currentUser }) {
         
         {/* Left Side: Complaints List */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-800 space-y-2 sm:space-y-0">
             <h2 className="text-lg font-bold font-outfit text-slate-200 flex items-center space-x-2">
               <List className="w-5 h-5 text-blue-400" />
-              <span>Your Registered Grievances ({complaints.length})</span>
+              <span>Your Registered Grievances ({filteredComplaints.length})</span>
             </h2>
           </div>
 
-          {complaints.length === 0 ? (
+          {/* Search, Filter & Sort Bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-slate-900/30 p-2.5 rounded-xl border border-slate-850">
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search ID/keyword..."
+                className="w-full pl-8 pr-2.5 py-1.5 rounded-lg text-xs text-slate-200 bg-slate-950 border border-slate-850 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+              />
+              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2" />
+            </div>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="px-2.5 py-1.5 rounded-lg text-xs text-slate-300 bg-slate-950 border border-slate-850 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="PENDING">Pending</option>
+              <option value="ASSIGNED">Assigned</option>
+              <option value="IN_PROGRESS">In Progress</option>
+              <option value="RESOLVED">Resolved</option>
+              <option value="ESCALATED">Escalated</option>
+              <option value="CLOSED">Closed</option>
+            </select>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+              className="px-2.5 py-1.5 rounded-lg text-xs text-slate-300 bg-slate-950 border border-slate-850 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
+            >
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+            </select>
+          </div>
+
+          {filteredComplaints.length === 0 ? (
             <div className="glass-panel p-12 rounded-2xl text-center space-y-3">
               <AlertCircle className="w-12 h-12 text-slate-500 mx-auto" />
-              <h3 className="text-sm font-semibold text-slate-350">No complaints registered yet</h3>
-              <p className="text-xs text-slate-550">Click "File a New Grievance" above to submit your first issue.</p>
+              <h3 className="text-sm font-semibold text-slate-350">No matching grievances found</h3>
+              <p className="text-xs text-slate-550">Try modifying your search query or status filter parameters.</p>
             </div>
           ) : (
             <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-              {complaints.map((c) => (
+              {filteredComplaints.map((c) => (
                 <div
                   key={c.id}
                   onClick={() => setSelectedComplaint(c)}
@@ -508,20 +567,47 @@ export default function CitizenDashboard({ currentUser }) {
                 {/* Progress Timeline */}
                 <div className="space-y-4 pt-2">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Grievance Timeline</span>
-                  <div className="relative pl-6 space-y-4 timeline-line">
-                    {selectedComplaint.timeline?.map((event, idx) => (
-                      <div key={event.id || idx} className="relative text-xs">
-                        <div className="absolute -left-[27px] top-1 w-3.5 h-3.5 rounded-full bg-slate-950 border-2 border-blue-500 flex items-center justify-center">
-                          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                  <div className="relative pl-6 space-y-5 border-l border-slate-800 ml-2">
+                    {selectedComplaint.timeline?.map((event, idx) => {
+                      let nodeColor = 'bg-slate-800 border-slate-700';
+                      let dotColor = 'bg-slate-500';
+                      
+                      if (event.status === 'PENDING') {
+                        nodeColor = 'bg-blue-500/10 border-blue-500';
+                        dotColor = 'bg-blue-500';
+                      } else if (event.status === 'ASSIGNED' || event.status === 'IN_PROGRESS') {
+                        nodeColor = 'bg-indigo-500/10 border-indigo-500';
+                        dotColor = 'bg-indigo-500';
+                      } else if (event.status === 'RESOLVED') {
+                        nodeColor = 'bg-emerald-500/10 border-emerald-500';
+                        dotColor = 'bg-emerald-500';
+                      } else if (event.status === 'CLOSED') {
+                        nodeColor = 'bg-slate-800 border-slate-500';
+                        dotColor = 'bg-slate-400';
+                      } else if (event.status === 'ESCALATED') {
+                        nodeColor = 'bg-rose-500/10 border-rose-500';
+                        dotColor = 'bg-rose-500';
+                      }
+
+                      return (
+                        <div key={event.id || idx} className="relative text-xs">
+                          {/* Circle dot on left line */}
+                          <div className={`absolute -left-[31px] top-0.5 w-3.5 h-3.5 rounded-full border-2 bg-slate-950 flex items-center justify-center transition-all ${nodeColor}`}>
+                            <div className={`w-1 h-1 rounded-full ${dotColor}`} />
+                          </div>
+                          <div className="bg-slate-900/35 border border-slate-850/50 p-3 rounded-xl space-y-1.5 text-left">
+                            <div className="flex justify-between items-center text-[10px] text-slate-500">
+                              <span className="font-bold text-slate-350 uppercase tracking-wider">{event.status.replace('_', ' ')}</span>
+                              <span>{new Date(event.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+                            </div>
+                            <p className="text-slate-300 leading-relaxed font-sans text-[11px]">{event.comment}</p>
+                            <div className="flex items-center justify-between text-[9px] text-slate-500 border-t border-slate-850/40 pt-1.5 mt-1">
+                              <span>Action by: <span className="font-semibold text-slate-400">{event.updatedByName}</span></span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex justify-between items-center text-[10px] text-slate-500">
-                          <span className="font-semibold text-slate-400 uppercase tracking-wider">{event.status}</span>
-                          <span>{new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                        </div>
-                        <p className="text-slate-350 mt-1 leading-relaxed">{event.comment}</p>
-                        <span className="text-[10px] text-slate-500 italic block mt-0.5">By: {event.updatedByName}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -670,8 +756,8 @@ export default function CitizenDashboard({ currentUser }) {
                 <div className="space-y-1">
                   <label className="text-xs text-slate-450 font-semibold flex items-center justify-between">
                     <span>Pin Exact Location on Map</span>
-                    <span className="text-[10px] text-slate-505 font-mono">
-                      GPS: [{latitude.toFixed(4)}, {longitude.toFixed(4)}]
+                    <span className="text-[10px] text-blue-450 font-semibold uppercase tracking-wider bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20 font-mono">
+                      📍 {BENGALURU_HOTSPOTS[selectedHotspot].name} ({BENGALURU_HOTSPOTS[selectedHotspot].ward}), GPS: [{latitude.toFixed(4)}, {longitude.toFixed(4)}]
                     </span>
                   </label>
                   <div 

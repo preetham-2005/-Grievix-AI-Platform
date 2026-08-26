@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import api from '../api';
 import { Sparkles, Shield, User, Mail, Lock, LogIn, ArrowRight, MapPin, Clock, Cpu, Users } from 'lucide-react';
 
-export default function Login({ onLoginSuccess }) {
+export default function Login({ onLoginSuccess, showToast }) {
   const [isRegister, setIsRegister] = useState(false);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -28,6 +28,7 @@ export default function Login({ onLoginSuccess }) {
           department: role === 'officer' || role === 'dept_head' ? department : null,
         });
         
+        showToast('Registration successful! Logging you in automatically...', 'success');
         // Auto-login after successful registration
         const response = await api.post('/auth/login', { username, password });
         onLoginSuccess(response.data);
@@ -38,7 +39,9 @@ export default function Login({ onLoginSuccess }) {
       }
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.message || 'Authentication failed. Please check details.');
+      const errMsg = err.response?.data?.message || 'Authentication failed. Please check details.';
+      setError(errMsg);
+      showToast(errMsg, 'error');
     } finally {
       setLoading(false);
     }
@@ -55,6 +58,7 @@ export default function Login({ onLoginSuccess }) {
       onLoginSuccess(response.data);
     } catch (err) {
       setError('Quick login failed. Ensure the backend is running and database is seeded.');
+      showToast('Quick login failed. Verify backend service is running.', 'error');
     } finally {
       setLoading(false);
     }

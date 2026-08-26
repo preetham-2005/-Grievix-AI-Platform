@@ -367,4 +367,118 @@ public class ComplaintService {
                 .timeline(timeline)
                 .build();
     }
+
+    @Transactional
+    public ComplaintResponse overrideRouting(Long id, String categoryStr, String departmentStr, Long officerId) {
+        Complaint complaint = complaintRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Complaint not found with ID: " + id));
+
+        StringBuilder changeLog = new StringBuilder("Administrator Manual Intervention: ");
+        boolean changed = false;
+
+        if (categoryStr != null && !categoryStr.isBlank()) {
+            Category newCat = Category.valueOf(categoryStr.toUpperCase());
+            if (complaint.getCategory() != newCat) {
+                changeLog.append(String.format("Changed Category from '%s' to '%s'. ", complaint.getCategory(), newCat));
+                complaint.setCategory(newCat);
+                changed = true;
+            }
+        }
+
+        if (departmentStr != null && !departmentStr.isBlank()) {
+            Department newDept = Department.valueOf(departmentStr.toUpperCase());
+            if (complaint.getDepartment() != newDept) {
+                changeLog.append(String.format("Changed Department from '%s' to '%s'. ", complaint.getDepartment(), newDept));
+                complaint.setDepartment(newDept);
+                changed = true;
+            }
+        }
+
+        if (officerId != null) {
+            if (officerId == -1) {
+                if (complaint.getAssignedOfficer() != null) {
+                    changeLog.append(String.format("Removed assigned officer (was: %s). ", complaint.getAssignedOfficer().getUsername()));
+                    complaint.setAssignedOfficer(null);
+                    complaint.setStatus(Status.PENDING);
+                    changed = true;
+                }
+            } else {
+                User officer = userRepository.findById(officerId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Officer not found with ID: " + officerId));
+                if (complaint.getAssignedOfficer() == null || !complaint.getAssignedOfficer().getId().equals(officerId)) {
+                    changeLog.append(String.format("Reassigned officer to '%s'. ", officer.getUsername()));
+                    complaint.setAssignedOfficer(officer);
+                    complaint.setStatus(Status.ASSIGNED);
+                    changed = true;
+                }
+            }
+        }
+
+        if (changed) {
+            Complaint saved = complaintRepository.save(complaint);
+            ComplaintHistory history = ComplaintHistory.builder()
+                    .complaint(saved)
+                    .status(saved.getStatus())
+                    .comment(changeLog.toString())
+                    .updatedBy(null) // system action by admin
+                    .build();
+            historyRepository.save(history);
+            return mapToResponse(saved);
+        }
+
+        return mapToResponse(complaint);
+    }
+
+    public byte[] exportFilteredComplaintsCsv(String category, String status, String department, String search) {
+        List<ComplaintResponse> complaints = searchAndFilter(category, status, department, search);
+        StringBuilder csv = new StringBuilder();
+        
+        // Add UTF-8 BOM for Excel compatibility
+        csv.append("\uFEFF");
+        
+        // CSV Headers
+        csv.append("Case ID,Title,Category,Priority,Status,City,Area,Ward,Department,Assigned Officer,Created Date,SLA Target Date,Resolution Notes,Rating Star,Feedback Note\n");
+        
+        for (ComplaintResponse c : complaints) {
+            csv.append(c.getId()).append(",")
+               .append(escapeCsvField(c.getTitle())).append(",")
+               .append(c.getCategory()).append(",")
+               .append(c.getPriority()).append(",")
+               .append(c.getStatus()).append(",")
+               .append(escapeCsvField(c.getCity())).append(",")
+               .append(escapeCsvField(c.getArea())).append(",")
+               .append(escapeCsvField(c.getWard())).append(",")
+               .append(c.getDepartment()).append(",")
+               .append(escapeCsvField(c.getOfficerName() != null ? c.getOfficerName() : "Unassigned")).append(",")
+               .append(c.getCreatedDate()).append(",")
+               .append(c.getSlaDeadline()).append(",")
+               .append(escapeCsvField(c.getResolutionNotes() != null ? c.getResolutionNotes() : "")).append(",")
+               .append(c.getRating() != null ? c.getRating() : "").append(",")
+               .append(escapeCsvField(c.getFeedbackNotes() != null ? c.getFeedbackNotes() : ""))
+               .append("\n");
+        }
+        
+        return csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    private String escapeCsvField(String field) {
+        if (field == null) return "";
+        if (field.contains(",") || field.contains("\"") || field.contains("\n") || field.contains("\r")) {
+            return "\"" + field.replace("\"", "\"\"") + "\"";
+        }
+        return field;
+    }
+
+    public List<Map<String, Object>> getAllOfficers() {
+        return userRepository.findAll().stream()
+                .filter(u -> u.getRole() == Role.ROLE_OFFICER)
+                .map(u -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", u.getId());
+                    map.put("username", u.getUsername());
+                    map.put("department", u.getDepartment() != null ? u.getDepartment().name() : null);
+                    return map;
+                })
+                .collect(Collectors.toList());
+    }
 }

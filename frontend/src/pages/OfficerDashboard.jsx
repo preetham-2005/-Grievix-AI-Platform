@@ -12,7 +12,7 @@ const RESOLUTION_IMAGES = [
   { label: 'Restored Light', url: '/presets/electricity.png' },
 ];
 
-export default function OfficerDashboard({ currentUser }) {
+export default function OfficerDashboard({ currentUser, showToast }) {
   const [complaints, setComplaints] = useState([]);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   
@@ -25,6 +25,33 @@ export default function OfficerDashboard({ currentUser }) {
   const [isCustomUpload, setIsCustomUpload] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Tabs and sorting states
+  const [activeTab, setActiveTab] = useState('active'); // 'active' vs 'resolved'
+  const [sortOrder, setSortOrder] = useState('priority'); // 'priority' vs 'deadline' vs 'date'
+
+  const filteredComplaints = complaints
+    .filter((c) => {
+      if (activeTab === 'active') {
+        return c.status === 'ASSIGNED' || c.status === 'IN_PROGRESS' || c.status === 'ESCALATED';
+      } else {
+        return c.status === 'RESOLVED' || c.status === 'CLOSED';
+      }
+    })
+    .sort((a, b) => {
+      if (sortOrder === 'priority') {
+        const weight = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
+        return (weight[b.priority] || 0) - (weight[a.priority] || 0);
+      } else if (sortOrder === 'deadline') {
+        const dateA = a.slaDeadline ? new Date(a.slaDeadline) : new Date(8640000000000000);
+        const dateB = b.slaDeadline ? new Date(b.slaDeadline) : new Date(8640000000000000);
+        return dateA - dateB;
+      } else {
+        const dateA = new Date(a.createdDate);
+        const dateB = new Date(b.createdDate);
+        return dateB - dateA;
+      }
+    });
 
   const fetchComplaints = async () => {
     try {
@@ -72,9 +99,10 @@ export default function OfficerDashboard({ currentUser }) {
       setResolutionImgUrl(response.data.url);
       setIsCustomUpload(true);
       setSelectedResImgIdx(-1);
+      showToast('Resolution proof photograph uploaded!', 'success');
     } catch (err) {
       console.error('Upload failed', err);
-      alert('Proof photo upload failed. Please try again.');
+      showToast('Proof photo upload failed. Please try again.', 'error');
     } finally {
       setIsUploading(false);
     }
@@ -94,9 +122,10 @@ export default function OfficerDashboard({ currentUser }) {
       setSelectedResImgIdx(-1);
       setIsCustomUpload(false);
       fetchComplaints();
+      showToast(`Complaint status updated to ${statusToSet} successfully!`, 'success');
     } catch (err) {
       console.error(err);
-      alert('Error updating status.');
+      showToast('Error updating status.', 'error');
     } finally {
       setLoading(false);
     }
@@ -138,22 +167,59 @@ export default function OfficerDashboard({ currentUser }) {
         
         {/* Left List of Assigned Complaints */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="flex justify-between items-center pb-2 border-b border-slate-800">
-            <h2 className="text-lg font-bold font-outfit text-slate-200 flex items-center space-x-2">
-              <CheckSquare className="w-5 h-5 text-emerald-400" />
-              <span>Assigned Grievances ({complaints.length})</span>
-            </h2>
+          <div className="space-y-4">
+            <div className="flex border-b border-slate-800">
+              <button
+                onClick={() => setActiveTab('active')}
+                className={`flex-1 pb-3 text-sm font-bold border-b-2 transition-all ${
+                  activeTab === 'active' 
+                    ? 'border-emerald-500 text-emerald-400' 
+                    : 'border-transparent text-slate-450 hover:text-slate-200'
+                }`}
+              >
+                Active Tasks ({complaints.filter(c => ['ASSIGNED', 'IN_PROGRESS', 'ESCALATED'].includes(c.status)).length})
+              </button>
+              <button
+                onClick={() => setActiveTab('resolved')}
+                className={`flex-1 pb-3 text-sm font-bold border-b-2 transition-all ${
+                  activeTab === 'resolved' 
+                    ? 'border-emerald-500 text-emerald-400' 
+                    : 'border-transparent text-slate-450 hover:text-slate-200'
+                }`}
+              >
+                Resolved History ({complaints.filter(c => ['RESOLVED', 'CLOSED'].includes(c.status)).length})
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between bg-slate-900/30 p-2.5 rounded-xl border border-slate-850">
+              <span className="text-[11px] text-slate-450 font-semibold">Sort Queue by:</span>
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
+                className="px-2.5 py-1.5 rounded-lg text-xs text-slate-300 bg-slate-950 border border-slate-850 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
+              >
+                <option value="priority">Priority weight (High First)</option>
+                <option value="deadline">SLA Target Date (Nearest breach first)</option>
+                <option value="date">Date Created (Newest first)</option>
+              </select>
+            </div>
           </div>
 
-          {complaints.length === 0 ? (
+          {filteredComplaints.length === 0 ? (
             <div className="glass-panel p-12 rounded-2xl text-center space-y-3">
               <CheckCircle className="w-12 h-12 text-slate-550 mx-auto" />
-              <h3 className="text-sm font-semibold text-slate-350">You have no active assignments</h3>
-              <p className="text-xs text-slate-550">Great job! All grievances in your queue are resolved.</p>
+              <h3 className="text-sm font-semibold text-slate-350">
+                {activeTab === 'active' ? 'You have no active assignments' : 'No resolved tasks in history'}
+              </h3>
+              <p className="text-xs text-slate-550">
+                {activeTab === 'active' 
+                  ? 'Great job! All grievances in your queue are resolved.' 
+                  : 'Resolved tickets will show up here for historical reference.'}
+              </p>
             </div>
           ) : (
             <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-              {complaints.map((c) => {
+              {filteredComplaints.map((c) => {
                 const overdue = isOverdue(c.slaDeadline, c.status);
                 return (
                   <div
