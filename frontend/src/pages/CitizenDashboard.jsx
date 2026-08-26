@@ -299,6 +299,29 @@ export default function CitizenDashboard({ currentUser }) {
         </button>
       </div>
 
+      {/* Resolved Alerts Notification Banner */}
+      {complaints.filter(c => c.status === 'RESOLVED').length > 0 && (
+        <div className="bg-gradient-to-r from-emerald-600/10 to-teal-500/10 border border-emerald-500/20 p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0 text-left">
+          <div className="flex items-start space-x-3 text-left">
+            <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-400 mt-0.5 sm:mt-0">
+              <Sparkles className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-slate-100">Grievance Resolution Pending Your Review!</h4>
+              <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                Your reported issue regarding <span className="font-semibold text-emerald-450">"{complaints.filter(c => c.status === 'RESOLVED')[0].title}"</span> has been marked as RESOLVED by the department. Please review the resolution proof and submit your feedback to officially close the case.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setSelectedComplaint(complaints.filter(c => c.status === 'RESOLVED')[0])}
+            className="flex items-center space-x-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg shadow-lg shadow-emerald-600/10 active:scale-[0.98] transition-all ml-0 sm:ml-4 whitespace-nowrap self-stretch sm:self-auto justify-center"
+          >
+            <span>Review & Rate</span>
+          </button>
+        </div>
+      )}
+
       {/* Main Grid: Left List, Right Detail */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
