@@ -23,15 +23,18 @@ public class ComplaintService {
     private final UserRepository userRepository;
     private final ComplaintHistoryRepository historyRepository;
     private final GeminiService geminiService;
+    private final NotificationService notificationService;
 
     public ComplaintService(ComplaintRepository complaintRepository,
                             UserRepository userRepository,
                             ComplaintHistoryRepository historyRepository,
-                            GeminiService geminiService) {
+                            GeminiService geminiService,
+                            NotificationService notificationService) {
         this.complaintRepository = complaintRepository;
         this.userRepository = userRepository;
         this.historyRepository = historyRepository;
         this.geminiService = geminiService;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -101,6 +104,12 @@ public class ComplaintService {
                 .updatedBy(null) // System/AI update
                 .build();
         historyRepository.save(history);
+
+        // Dispatch SMS and Email alerts
+        notificationService.sendSms(citizen.getEmail(), "Grievix Alert: Your grievance #" + savedComplaint.getId() + " is registered. AI classified it as '" + savedComplaint.getCategory().name() + "'. Status: " + savedComplaint.getStatus() + ".");
+        if (assignedOfficer != null) {
+            notificationService.sendEmail(assignedOfficer.getEmail(), "New Task Assignment: #" + savedComplaint.getId(), "Hello " + assignedOfficer.getUsername() + ",\n\nYou have been assigned a new grievance: '" + savedComplaint.getTitle() + "'. Please review it inside the officer portal.");
+        }
 
         return mapToResponse(savedComplaint);
     }
@@ -218,6 +227,11 @@ public class ComplaintService {
                 .build();
         historyRepository.save(history);
 
+        // Dispatch alert when resolved
+        if (newStatus == Status.RESOLVED) {
+            notificationService.sendSms(savedComplaint.getCitizen().getEmail(), "Grievix Alert: Your grievance #" + savedComplaint.getId() + " is marked as RESOLVED by the officer. Please review it and submit rating feedback.");
+        }
+
         return mapToResponse(savedComplaint);
     }
 
@@ -246,6 +260,9 @@ public class ComplaintService {
                 .updatedBy(citizen)
                 .build();
         historyRepository.save(history);
+
+        // Dispatch case closure alert
+        notificationService.sendSms(citizen.getEmail(), "Grievix Alert: Thank you for your feedback. Case #" + savedComplaint.getId() + " is now officially closed.");
 
         return mapToResponse(savedComplaint);
     }

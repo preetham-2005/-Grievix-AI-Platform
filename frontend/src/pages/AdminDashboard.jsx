@@ -22,6 +22,8 @@ export default function AdminDashboard({ currentUser }) {
   const [filterCategory, setFilterCategory] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [activePlot, setActivePlot] = useState(null);
+  const [mapInstance, setMapInstance] = useState(null);
+  const [markersGroup, setMarkersGroup] = useState(null);
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -75,6 +77,67 @@ export default function AdminDashboard({ currentUser }) {
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  // Initialize Leaflet Map
+  useEffect(() => {
+    const mapEl = document.getElementById('admin-map');
+    if (mapEl && window.L && !mapInstance) {
+      const map = window.L.map('admin-map').setView([12.9716, 77.5946], 12);
+      
+      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: 'Map &copy; OpenStreetMap contributors'
+      }).addTo(map);
+
+      const layerGroup = window.L.layerGroup().addTo(map);
+      setMapInstance(map);
+      setMarkersGroup(layerGroup);
+    }
+
+    return () => {
+      if (mapInstance) {
+        mapInstance.remove();
+        setMapInstance(null);
+        setMarkersGroup(null);
+      }
+    };
+  }, []);
+
+  // Plot dynamic markers whenever complaints list changes
+  useEffect(() => {
+    if (mapInstance && markersGroup && complaints && window.L) {
+      markersGroup.clearLayers();
+
+      complaints.forEach(c => {
+        if (c.latitude && c.longitude) {
+          let color = '#3b82f6'; // default blue
+          if (c.status === 'ESCALATED' || c.priority === 'CRITICAL') {
+            color = '#f43f5e'; // red
+          } else if (c.priority === 'HIGH') {
+            color = '#f59e0b'; // orange
+          } else if (c.status === 'RESOLVED' || c.status === 'CLOSED') {
+            color = '#10b981'; // green
+          }
+
+          const customIcon = window.L.divIcon({
+            className: 'custom-div-icon',
+            html: `<div style="background-color: ${color}; width: 14px; height: 14px; border: 2px solid #020617; border-radius: 50%; box-shadow: 0 0 8px ${color}; cursor: pointer;"></div>`,
+            iconSize: [14, 14],
+            iconAnchor: [7, 7]
+          });
+
+          const marker = window.L.marker([c.latitude, c.longitude], { icon: customIcon });
+
+          marker.on('click', () => {
+            setActivePlot(c);
+          });
+
+          marker.bindTooltip(`#${c.id}: ${c.title}`, { direction: 'top', offset: [0, -7] });
+          markersGroup.addLayer(marker);
+        }
+      });
+    }
+  }, [mapInstance, markersGroup, complaints]);
 
   const triggerSlaCheck = async () => {
     setSlaMessage('Running check...');
@@ -214,68 +277,13 @@ export default function AdminDashboard({ currentUser }) {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {/* The SVG Map Canvas */}
-          <div className="md:col-span-3 h-96 relative bg-slate-950/60 rounded-xl border border-slate-900 overflow-hidden flex items-center justify-center group">
-            {/* Grid Pattern Background */}
-            <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b1a_1px,transparent_1px),linear-gradient(to_bottom,#1e293b1a_1px,transparent_1px)] bg-[size:24px_24px]"></div>
-            
-            {/* Mock Map Outline */}
-            <svg className="w-full h-full opacity-35" viewBox="0 0 100 100" preserveAspectRatio="none">
-              <path d="M20,30 Q30,15 50,20 T80,30 T90,60 T70,85 T40,80 T15,60 Z" fill="none" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="2" />
-              <path d="M35,45 L40,55 L55,50 L60,35 Z" fill="none" stroke="#1e293b" strokeWidth="0.5" />
-              <path d="M50,20 L60,45 L80,50" fill="none" stroke="#1e293b" strokeWidth="0.3" />
-              {/* Wards/sectors marker labels */}
-              <text x="30" y="25" fill="#475569" fontSize="3" fontFamily="Outfit">WEST ZONE</text>
-              <text x="65" y="40" fill="#475569" fontSize="3" fontFamily="Outfit">EAST ZONE</text>
-              <text x="45" y="75" fill="#475569" fontSize="3" fontFamily="Outfit">SOUTH ZONE</text>
-              <text x="75" y="70" fill="#475569" fontSize="3" fontFamily="Outfit">MAHADEVAPURA</text>
-              <text x="48" y="10" fill="#475569" fontSize="3" fontFamily="Outfit">YELAHANKA</text>
-            </svg>
-            
-            {/* Dynamic Complaint Plot Dots */}
-            {complaints.map((c) => {
-              const minLat = 12.80, maxLat = 13.12;
-              const minLng = 77.50, maxLng = 77.80;
-              
-              // Scale to 0-100%
-              let y = 100 - ((c.latitude - minLat) / (maxLat - minLat)) * 100;
-              let x = ((c.longitude - minLng) / (maxLng - minLng)) * 100;
-              
-              // Clamp bounds to prevent overflow
-              x = Math.max(5, Math.min(95, x));
-              y = Math.max(5, Math.min(95, y));
-              
-              // Color based on status / priority
-              let colorClass = "bg-blue-500 shadow-blue-500/50";
-              if (c.status === 'ESCALATED' || c.priority === 'CRITICAL') {
-                colorClass = "bg-rose-500 shadow-rose-500/50";
-              } else if (c.priority === 'HIGH') {
-                colorClass = "bg-amber-500 shadow-amber-500/50";
-              } else if (c.status === 'RESOLVED' || c.status === 'CLOSED') {
-                colorClass = "bg-emerald-500 shadow-emerald-500/50";
-              }
-              
-              return (
-                <div
-                  key={c.id}
-                  style={{ left: `${x}%`, top: `${y}%` }}
-                  onClick={() => setActivePlot(c)}
-                  className={`absolute w-3.5 h-3.5 rounded-full cursor-pointer hover:scale-125 transition-transform border border-slate-950 flex items-center justify-center group/dot ${colorClass} shadow-[0_0_8px_rgba(59,130,246,0.5)]`}
-                  title={`#${c.id}: ${c.title}`}
-                >
-                  {/* Pulsing ring for active issues */}
-                  {(c.status !== 'RESOLVED' && c.status !== 'CLOSED') && (
-                    <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping ${
-                      c.status === 'ESCALATED' || c.priority === 'CRITICAL' ? 'bg-rose-500' : c.priority === 'HIGH' ? 'bg-amber-500' : 'bg-blue-500'
-                    }`}></span>
-                  )}
-                </div>
-              );
-            })}
+          {/* The Leaflet Map Canvas */}
+          <div className="md:col-span-3 h-96 relative bg-slate-950/60 rounded-xl border border-slate-900 overflow-hidden z-10 flex flex-col">
+            <div id="admin-map" className="w-full h-full"></div>
 
             {/* Floating map popup card overlay */}
             {activePlot && (
-              <div className="absolute bottom-4 left-4 right-4 bg-slate-900/95 border border-slate-800 p-4 rounded-xl shadow-2xl flex justify-between items-start z-10 animate-fade-in">
+              <div className="absolute bottom-4 left-4 right-4 bg-slate-900/95 border border-slate-800 p-4 rounded-xl shadow-2xl flex justify-between items-start z-[1000] animate-fade-in">
                 <div className="space-y-1.5 text-xs">
                   <div className="flex items-center space-x-2">
                     <span className="font-mono text-[9px] text-slate-500">CASE ID: #{activePlot.id}</span>
@@ -290,7 +298,7 @@ export default function AdminDashboard({ currentUser }) {
                   <div className="flex space-x-3 text-[9px] text-slate-550 font-semibold pt-1">
                     <span>Area: {activePlot.area}</span>
                     <span>Priority: {activePlot.priority}</span>
-                    <span>Assigned: {activePlot.officerName}</span>
+                    <span>Assigned: {activePlot.officerName || 'Unassigned'}</span>
                   </div>
                 </div>
                 <button

@@ -46,6 +46,12 @@ export default function CitizenDashboard({ currentUser }) {
   const [selectedHotspot, setSelectedHotspot] = useState(0);
   const [imageUrl, setImageUrl] = useState('');
   const [imageCategory, setImageCategory] = useState('ROAD_DAMAGE');
+  const [latitude, setLatitude] = useState(12.9716);
+  const [longitude, setLongitude] = useState(77.5946);
+  const [mapInstance, setMapInstance] = useState(null);
+  const [markerInstance, setMarkerInstance] = useState(null);
+  const [isCustomUpload, setIsCustomUpload] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   // AI Loading & Result state
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
@@ -69,10 +75,105 @@ export default function CitizenDashboard({ currentUser }) {
     fetchComplaints();
   }, []);
 
+  // Initialize Leaflet Map inside filing modal dynamically
+  useEffect(() => {
+    if (showSubmitModal && !aiResult && !aiAnalyzing) {
+      const timer = setTimeout(() => {
+        const mapEl = document.getElementById('citizen-map');
+        if (mapEl && window.L) {
+          const defaultHotspot = BENGALURU_HOTSPOTS[selectedHotspot];
+          
+          // Clean up any existing map instance before creating
+          if (mapInstance) {
+            mapInstance.remove();
+          }
+
+          const map = window.L.map('citizen-map').setView([defaultHotspot.lat, defaultHotspot.lng], 13);
+          
+          window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: 'Map &copy; OpenStreetMap'
+          }).addTo(map);
+
+          const marker = window.L.marker([defaultHotspot.lat, defaultHotspot.lng], {
+            draggable: true
+          }).addTo(map);
+
+          setLatitude(defaultHotspot.lat);
+          setLongitude(defaultHotspot.lng);
+
+          marker.on('dragend', function (e) {
+            const pos = marker.getLatLng();
+            setLatitude(pos.lat);
+            setLongitude(pos.lng);
+          });
+
+          map.on('click', function (e) {
+            marker.setLatLng(e.latlng);
+            setLatitude(e.latlng.lat);
+            setLongitude(e.latlng.lng);
+          });
+
+          setMapInstance(map);
+          setMarkerInstance(marker);
+        }
+      }, 100);
+
+      return () => {
+        clearTimeout(timer);
+      };
+    } else {
+      if (mapInstance) {
+        mapInstance.remove();
+        setMapInstance(null);
+        setMarkerInstance(null);
+      }
+    }
+  }, [showSubmitModal, aiResult, aiAnalyzing]);
+
+  // Sync Map view when hotspot dropdown changes
+  useEffect(() => {
+    if (mapInstance && markerInstance) {
+      const hotspot = BENGALURU_HOTSPOTS[selectedHotspot];
+      mapInstance.setView([hotspot.lat, hotspot.lng], 13);
+      markerInstance.setLatLng([hotspot.lat, hotspot.lng]);
+      setLatitude(hotspot.lat);
+      setLongitude(hotspot.lng);
+    }
+  }, [selectedHotspot]);
+
   const handlePresetImageChange = (categoryKey) => {
     setImageCategory(categoryKey);
     setImageUrl(IMAGE_PRESETS[categoryKey]);
+    setIsCustomUpload(false);
   };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    setIsUploading(true);
+    try {
+      const response = await api.post('/images/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      setImageUrl(response.data.url);
+      setIsCustomUpload(true);
+      setImageCategory(''); // clear preset highlight
+    } catch (err) {
+      console.error('Upload failed', err);
+      alert('Photo upload failed. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -83,8 +184,8 @@ export default function CitizenDashboard({ currentUser }) {
     const payload = {
       title,
       description,
-      latitude: hotspot.lat,
-      longitude: hotspot.lng,
+      latitude,
+      longitude,
       ward: hotspot.ward,
       area: hotspot.name,
       city: hotspot.city,
@@ -103,6 +204,7 @@ export default function CitizenDashboard({ currentUser }) {
         setTitle('');
         setDescription('');
         setImageUrl('');
+        setIsCustomUpload(false);
       }, 1500);
 
     } catch (err) {
@@ -496,7 +598,7 @@ export default function CitizenDashboard({ currentUser }) {
                 <div className="space-y-1">
                   <label className="text-xs text-slate-450 font-semibold flex items-center space-x-1">
                     <MapPin className="w-3.5 h-3.5 text-blue-400" />
-                    <span>Location Hotspot (Bengaluru Area Mock)</span>
+                    <span>Select Location Hotspot</span>
                   </label>
                   <select
                     value={selectedHotspot}
@@ -505,35 +607,84 @@ export default function CitizenDashboard({ currentUser }) {
                   >
                     {BENGALURU_HOTSPOTS.map((spot, index) => (
                       <option key={index} value={index}>
-                        {spot.name} ({spot.ward}) - GPS: [{spot.lat}, {spot.lng}]
+                        {spot.name} ({spot.ward})
                       </option>
                     ))}
                   </select>
                 </div>
 
-                {/* Upload Image Presets */}
+                {/* Leaflet GPS Picker Map */}
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-450 font-semibold flex items-center justify-between">
+                    <span>Pin Exact Location on Map</span>
+                    <span className="text-[10px] text-slate-505 font-mono">
+                      GPS: [{latitude.toFixed(4)}, {longitude.toFixed(4)}]
+                    </span>
+                  </label>
+                  <div 
+                    id="citizen-map" 
+                    className="h-44 rounded-xl border border-slate-800 bg-slate-950 overflow-hidden relative z-10"
+                    style={{ minHeight: '176px' }}
+                  ></div>
+                </div>
+
+                {/* Upload Image Section */}
                 <div className="space-y-2">
                   <label className="text-xs text-slate-450 font-semibold flex items-center space-x-1">
                     <Upload className="w-3.5 h-3.5 text-blue-400" />
-                    <span>Attach Complaint Image (Mock Upload Presets)</span>
+                    <span>Attach Complaint Image (Real File Upload or Presets)</span>
                   </label>
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                    {Object.keys(IMAGE_PRESETS).map((key) => (
-                      <button
-                        type="button"
-                        key={key}
-                        onClick={() => handlePresetImageChange(key)}
-                        className={`p-2 rounded-lg border text-[10px] text-center font-medium truncate transition-all ${imageCategory === key && imageUrl ? 'bg-blue-600/10 border-blue-500 text-blue-450 font-bold' : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'}`}
-                      >
-                        {key.replace('_', ' ')}
-                      </button>
-                    ))}
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Binary File Upload Box */}
+                    <div className="p-3 bg-slate-900/40 border border-slate-850 rounded-xl flex flex-col justify-center items-center space-y-1.5 group hover:border-slate-700 transition-colors relative min-h-[70px]">
+                      <input
+                        type="file"
+                        id="file-upload"
+                        accept="image/*"
+                        onChange={handleFileUpload}
+                        disabled={isUploading}
+                        className="hidden"
+                      />
+                      <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center space-y-1 text-slate-400 group-hover:text-slate-200">
+                        <Upload className="w-5 h-5 text-slate-500 group-hover:text-blue-400 transition-colors" />
+                        <span className="text-[11px] font-semibold">
+                          {isUploading ? 'Uploading file...' : 'Choose Image File'}
+                        </span>
+                        <span className="text-[9px] text-slate-550">PNG, JPG, JPEG</span>
+                      </label>
+                    </div>
+
+                    {/* Presets Grid fallback */}
+                    <div className="space-y-1">
+                      <span className="text-[9px] text-slate-550 uppercase font-bold tracking-wider block mb-1">Or Choose Preset</span>
+                      <div className="grid grid-cols-3 gap-1">
+                        {Object.keys(IMAGE_PRESETS).map((key) => (
+                          <button
+                            type="button"
+                            key={key}
+                            onClick={() => handlePresetImageChange(key)}
+                            className={`p-1 rounded border text-[9px] text-center font-medium truncate transition-all ${imageCategory === key && imageUrl && !isCustomUpload ? 'bg-blue-600/10 border-blue-500 text-blue-450 font-bold' : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'}`}
+                          >
+                            {key.replace('_', ' ')}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
+
                   {imageUrl && (
-                    <div className="mt-3 relative w-full h-32 rounded-xl overflow-hidden border border-slate-800">
-                      <img src={imageUrl} alt="Preset Preview" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 to-transparent p-3 flex items-end">
-                        <span className="text-[10px] font-bold text-slate-300">Preset Image Selected for AI Input</span>
+                    <div className="mt-3 relative w-full h-28 rounded-xl overflow-hidden border border-slate-800">
+                      <img src={imageUrl} alt="Complaint Preview" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 to-transparent p-2.5 flex items-end justify-between">
+                        <span className="text-[10px] font-bold text-slate-300">
+                          {isCustomUpload ? 'Custom Uploaded Photo' : 'Preset Image Selected'}
+                        </span>
+                        {isCustomUpload && (
+                          <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 font-bold uppercase">
+                            Real File
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}

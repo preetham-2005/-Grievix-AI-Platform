@@ -92,3 +92,43 @@ grievix:
   escalation:
     slaHours: 24                 # 24 hours SLA default
     checkIntervalMs: 3600000      # Check every 1 hour in production
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/grievix}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAX_POOL_SIZE:10}
+      minimum-idle: 2
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      connection-timeout: 20000
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+  data:
+    redis:
+      repositories:
+        enabled: false
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+grievix:
+  jwt:
+    secret: ${GRIEVIX_JWT_SECRET:9a4f2c8d3e1b7f6a0c5b3e2a8d9c1f0e4b7a2d3c6e9f1a0b3c2d5e8f7a6b9c0d1e2f3a4b5c6d7e8f9}
+    expirationMs: 3600000
+    refreshExpirationMs: 86400000
+  gemini:
+    apiKey: ${GEMINI_API_KEY:}
+    apiUrl: https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
+  escalation:
+    slaHours: 24
+    checkIntervalMs: 3600000

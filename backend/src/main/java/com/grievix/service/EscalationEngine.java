@@ -20,13 +20,16 @@ public class EscalationEngine {
     private final ComplaintRepository complaintRepository;
     private final EscalationLogRepository escalationLogRepository;
     private final ComplaintHistoryRepository historyRepository;
+    private final NotificationService notificationService;
 
     public EscalationEngine(ComplaintRepository complaintRepository,
                             EscalationLogRepository escalationLogRepository,
-                            ComplaintHistoryRepository historyRepository) {
+                            ComplaintHistoryRepository historyRepository,
+                            NotificationService notificationService) {
         this.complaintRepository = complaintRepository;
         this.escalationLogRepository = escalationLogRepository;
         this.historyRepository = historyRepository;
+        this.notificationService = notificationService;
     }
 
     // Schedule check. Runs every interval configured (60s in dev for testing ease, 1hr in production)
@@ -110,10 +113,24 @@ public class EscalationEngine {
         String officerName = complaint.getAssignedOfficer() != null ? complaint.getAssignedOfficer().getUsername() : "Unassigned";
         String departmentName = complaint.getDepartment() != null ? complaint.getDepartment().getLabel() : "Unspecified";
 
-        System.out.printf("[NOTIFICATION ENGINE - ESCALATION WARNING]\n" +
-                        "TO ASSIGNED OFFICER (%s): Warning! Complaint #%d is past due. %s\n" +
-                        "TO DEPARTMENT HEAD (%s Head): Alert! SLA breached on Complaint #%d. Escalated to Critical/High attention.\n" +
-                        "TO SYSTEM ADMINISTRATORS: Audit logged for Complaint #%d SLA failure.\n",
-                officerName, complaint.getId(), details, departmentName, complaint.getId(), complaint.getId());
+        // Dispatch console-logged fallback outputs AND direct email triggers
+        System.out.printf("[NOTIFICATION ENGINE - ESCALATION WARNING] Dispatching alerts for Complaint #%d SLA breach.\n", complaint.getId());
+
+        // Notify Department Head
+        String deptHeadEmail = (complaint.getDepartment() != null ? complaint.getDepartment().name().toLowerCase() : "general") + "_head@grievix.gov.in";
+        notificationService.sendEmail(
+                deptHeadEmail,
+                "CRITICAL: SLA Escalation Alert - Case #" + complaint.getId(),
+                String.format("Dear Department Head,\n\nAn urgent complaint in your agency (%s) has breached its SLA target. Details:\n\n%s\n\nPlease log in to the Department Head operations dashboard to re-route or monitor case resolution.", departmentName, details)
+        );
+
+        // Notify Assigned Officer
+        if (complaint.getAssignedOfficer() != null) {
+            notificationService.sendEmail(
+                    complaint.getAssignedOfficer().getEmail(),
+                    "WARNING: SLA Escalation Notice - Case #" + complaint.getId(),
+                    String.format("Hello %s,\n\nCase #%d assigned to you is past due and has been automatically escalated. Details:\n\n%s\n\nPlease resolve this ticket immediately.", officerName, complaint.getId(), details)
+            );
+        }
     }
 }
