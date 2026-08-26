@@ -103,12 +103,36 @@ export default function CitizenDashboard({ currentUser }) {
             const pos = marker.getLatLng();
             setLatitude(pos.lat);
             setLongitude(pos.lng);
+
+            // Find closest hotspot to automatically highlight in dropdown
+            let closestIdx = 0;
+            let minDistance = Infinity;
+            BENGALURU_HOTSPOTS.forEach((spot, idx) => {
+              const d = Math.pow(spot.lat - pos.lat, 2) + Math.pow(spot.lng - pos.lng, 2);
+              if (d < minDistance) {
+                minDistance = d;
+                closestIdx = idx;
+              }
+            });
+            setSelectedHotspot(closestIdx);
           });
 
           map.on('click', function (e) {
             marker.setLatLng(e.latlng);
             setLatitude(e.latlng.lat);
             setLongitude(e.latlng.lng);
+
+            // Find closest hotspot to automatically highlight in dropdown
+            let closestIdx = 0;
+            let minDistance = Infinity;
+            BENGALURU_HOTSPOTS.forEach((spot, idx) => {
+              const d = Math.pow(spot.lat - e.latlng.lat, 2) + Math.pow(spot.lng - e.latlng.lng, 2);
+              if (d < minDistance) {
+                minDistance = d;
+                closestIdx = idx;
+              }
+            });
+            setSelectedHotspot(closestIdx);
           });
 
           mapRef.current = map;
@@ -132,16 +156,16 @@ export default function CitizenDashboard({ currentUser }) {
     }
   }, [showSubmitModal, aiResult, aiAnalyzing]);
 
-  // Sync Map view when hotspot dropdown changes
-  useEffect(() => {
+  const handleHotspotChange = (index) => {
+    setSelectedHotspot(index);
+    const hotspot = BENGALURU_HOTSPOTS[index];
     if (mapRef.current && markerRef.current) {
-      const hotspot = BENGALURU_HOTSPOTS[selectedHotspot];
       mapRef.current.setView([hotspot.lat, hotspot.lng], 13);
       markerRef.current.setLatLng([hotspot.lat, hotspot.lng]);
-      setLatitude(hotspot.lat);
-      setLongitude(hotspot.lng);
     }
-  }, [selectedHotspot]);
+    setLatitude(hotspot.lat);
+    setLongitude(hotspot.lng);
+  };
 
   const handlePresetImageChange = (categoryKey) => {
     setImageCategory(categoryKey);
@@ -603,7 +627,7 @@ export default function CitizenDashboard({ currentUser }) {
                   </label>
                   <select
                     value={selectedHotspot}
-                    onChange={(e) => setSelectedHotspot(Number(e.target.value))}
+                    onChange={(e) => handleHotspotChange(Number(e.target.value))}
                     className="glass-input w-full px-3 py-2.5 rounded-lg text-sm appearance-none bg-slate-900"
                   >
                     {BENGALURU_HOTSPOTS.map((spot, index) => (

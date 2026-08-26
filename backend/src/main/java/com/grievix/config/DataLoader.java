@@ -66,7 +66,6 @@ public class DataLoader implements CommandLineRunner {
                 .active(true)
                 .build();
         userRepository.save(waterOfficer);
-
         User electricOfficer = User.builder()
                 .username("electric_officer")
                 .email("electric.officer@grievix.gov.in")
@@ -76,6 +75,16 @@ public class DataLoader implements CommandLineRunner {
                 .active(true)
                 .build();
         userRepository.save(electricOfficer);
+
+        User municipalityOfficer = User.builder()
+                .username("municipality_officer")
+                .email("municipality.officer@grievix.gov.in")
+                .password(encodedPassword)
+                .role(Role.ROLE_OFFICER)
+                .department(Department.MUNICIPALITY)
+                .active(true)
+                .build();
+        userRepository.save(municipalityOfficer);
 
         User deptHead = User.builder()
                 .username("dept_head")

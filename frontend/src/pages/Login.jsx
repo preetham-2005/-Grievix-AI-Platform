@@ -311,9 +311,17 @@ export default function Login({ onLoginSuccess }) {
               <button
                 type="button"
                 onClick={() => handleQuickLogin('water_officer', 'password')}
-                className="p-2.5 rounded-lg bg-slate-950 hover:bg-slate-900 border border-slate-900 text-slate-300 hover:text-white transition-all text-left flex items-center justify-between"
+                className="p-2.5 rounded-lg bg-slate-955 hover:bg-slate-900 border border-slate-900 text-slate-300 hover:text-white transition-all text-left flex items-center justify-between"
               >
                 <span>Water Officer</span>
+                <ArrowRight className="w-3 h-3 text-slate-600 animate-pulse" />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickLogin('municipality_officer', 'password')}
+                className="p-2.5 rounded-lg bg-slate-950 hover:bg-slate-900 border border-slate-900 text-slate-300 hover:text-white transition-all text-left flex items-center justify-between"
+              >
+                <span>Municipality Officer</span>
                 <ArrowRight className="w-3 h-3 text-slate-600 animate-pulse" />
               </button>
               <button
