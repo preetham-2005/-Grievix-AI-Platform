@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import api from '../api';
 import { 
   PlusCircle, List, Clock, CheckCircle, AlertCircle, MapPin, 
-  Upload, Star, Sparkles, Navigation, X, Info
+  Upload, Star, Sparkles, Navigation, X, Info, Search
 } from 'lucide-react';
 
 const BENGALURU_HOTSPOTS = [
