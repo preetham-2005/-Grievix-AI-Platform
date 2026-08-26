@@ -1,5 +1,8 @@
 package com.grievix.service;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -13,6 +16,9 @@ import java.util.Base64;
 public class NotificationService {
 
     private final HttpClient httpClient = HttpClient.newHttpClient();
+
+    @Autowired(required = false)
+    private JavaMailSender mailSender;
 
     public void sendSms(String toPhoneNumber, String message) {
         String accountSid = System.getenv("TWILIO_ACCOUNT_SID");
@@ -55,10 +61,24 @@ public class NotificationService {
 
     public void sendEmail(String toEmail, String subject, String body) {
         String mailHost = System.getenv("SPRING_MAIL_HOST");
-        // In production, we'd use Spring MailSender. For this modular build, we output a robust
-        // fallback console log to show the trigger event clearly unless mailHost env configs are integrated.
-        if (mailHost != null) {
-            System.out.println("Cloud SMTP Host configured: " + mailHost + ". Dispatching real email to: " + toEmail);
+        
+        if (mailHost != null && mailSender != null) {
+            try {
+                SimpleMailMessage mailMessage = new SimpleMailMessage();
+                mailMessage.setTo(toEmail);
+                mailMessage.setSubject(subject);
+                mailMessage.setText(body);
+                
+                String mailUser = System.getenv("SPRING_MAIL_USERNAME");
+                if (mailUser != null) {
+                    mailMessage.setFrom(mailUser);
+                }
+                
+                mailSender.send(mailMessage);
+                System.out.println("Mail successfully sent to: " + toEmail);
+            } catch (Exception e) {
+                System.err.println("SMTP dispatch failed: " + e.getMessage());
+            }
         } else {
             // MOCK Fallback for developer environment
             System.out.println("\n--------------------------------------------------");
