@@ -84,7 +84,7 @@ public class SecurityConfig {
         if (envOrigins != null && !envOrigins.isBlank()) {
             configuration.setAllowedOrigins(Arrays.asList(envOrigins.split(",")));
         } else {
-            configuration.setAllowedOrigins(Arrays.asList("http://localhost:5173", "http://localhost:5174"));
+            configuration.setAllowedOriginPatterns(Arrays.asList("*"));
         }
         
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
